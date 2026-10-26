@@ -1,0 +1,617 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Flock Energy - Urja Meter Ops API",
+    "version": "1.0.0",
+    "description": "Read-only REST API wrapper around the legacy Urja Meter Ops portal. Provides meter listing, meter details, consumption records, and reconstructed hierarchy data."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Service health"
+    },
+    {
+      "name": "Meters",
+      "description": "Meter information and consumption"
+    },
+    {
+      "name": "Hierarchy",
+      "description": "Reconstructed meter hierarchy"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health check",
+        "description": "Returns the current API service status.",
+        "responses": {
+          "200": {
+            "description": "Service is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meters": {
+      "get": {
+        "tags": ["Meters"],
+        "summary": "List meters",
+        "description": "Returns meter records with optional pagination and portal-supported search. The result metadata is nested inside the response's data property.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of meters to return.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Number of meters to skip, starting from zero.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Search text passed to the portal meter search.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Meter list and pagination metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeterListResponse"
+                },
+                "example": {
+                  "data": {
+                    "data": [
+                      {
+                        "meterId": "J100000",
+                        "serialNo": "SE33962",
+                        "make": "HPL",
+                        "phaseType": "single",
+                        "installStatus": "Decommissioned",
+                        "dtCode": "DT-001"
+                      }
+                    ],
+                    "total": 403,
+                    "page": 1,
+                    "pageSize": 5
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/PortalResponseError"
+          }
+        }
+      }
+    },
+    "/api/v1/meters/{id}": {
+      "get": {
+        "tags": ["Meters"],
+        "summary": "Get meter details",
+        "description": "Retrieves the details and available hierarchy fields for a meter.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MeterId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Meter details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeterDetailResponse"
+                },
+                "example": {
+                  "data": {
+                    "meterId": "J100000",
+                    "serialNo": "SE33962",
+                    "make": "HPL",
+                    "phaseType": "single",
+                    "installStatus": "Decommissioned",
+                    "installationType": "Whole Current",
+                    "hierarchy": {
+                      "zone": "Jaipur Zone 1 (Z-01)",
+                      "circle": "Circle 1 (C-01)",
+                      "division": "Division 1 (D-01)",
+                      "subdivision": "Subdivision 1 (SD-01)",
+                      "subStation": "Substation 1 (SS-01)",
+                      "feeder": "Feeder 1 (F-001)",
+                      "dt": "Malviya Nagar DT 1 (DT-001)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/MeterNotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/PortalResponseError"
+          }
+        }
+      }
+    },
+    "/api/v1/meters/{id}/consumption": {
+      "get": {
+        "tags": ["Meters"],
+        "summary": "Get meter consumption",
+        "description": "Returns consumption records for a meter. Optional from and to filters are inclusive. The portal timestamps are interpreted from DD/MM/YYYY HH:mm values; date filters should use valid ISO date or datetime strings.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MeterId"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Include records at or after this date or datetime.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-06-24T00:00:00"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Include records at or before this date or datetime.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-06-24T02:00:00"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consumption records and count",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsumptionResponse"
+                },
+                "example": {
+                  "data": {
+                    "meterId": "J100000",
+                    "count": 1,
+                    "data": [
+                      {
+                        "timestamp": "24/06/2026 01:00",
+                        "kwh": "48438.74",
+                        "kvah": "52313.84",
+                        "voltR": "226"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/MeterNotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/PortalResponseError"
+          }
+        }
+      }
+    },
+    "/api/v1/hierarchy": {
+      "get": {
+        "tags": ["Hierarchy"],
+        "summary": "Get meter hierarchy",
+        "description": "Reconstructs unique hierarchy paths by fetching meter listings and their details. Some paths may contain incomplete fields if the source portal data is incomplete. This operation may take longer than individual meter requests.",
+        "responses": {
+          "200": {
+            "description": "Unique hierarchy paths",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HierarchyResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/PortalResponseError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "MeterId": {
+        "name": "id",
+        "in": "path",
+        "description": "Meter identifier.",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "example": "J100000"
+        }
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "required": ["status", "service"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "service": {
+            "type": "string",
+            "example": "flock-energy-api"
+          }
+        }
+      },
+      "Meter": {
+        "type": "object",
+        "properties": {
+          "meterId": {
+            "type": "string",
+            "example": "J100000"
+          },
+          "serialNo": {
+            "type": "string",
+            "nullable": true,
+            "example": "SE33962"
+          },
+          "make": {
+            "type": "string",
+            "nullable": true,
+            "example": "HPL"
+          },
+          "phaseType": {
+            "type": "string",
+            "nullable": true,
+            "example": "single"
+          },
+          "installStatus": {
+            "type": "string",
+            "nullable": true,
+            "example": "Decommissioned"
+          },
+          "dtCode": {
+            "type": "string",
+            "nullable": true,
+            "example": "DT-001"
+          }
+        }
+      },
+      "MeterListData": {
+        "type": "object",
+        "required": ["data", "total", "page", "pageSize"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Meter"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "example": 403
+          },
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "example": 5
+          }
+        }
+      },
+      "MeterListResponse": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MeterListData"
+          }
+        }
+      },
+      "HierarchyPath": {
+        "type": "object",
+        "properties": {
+          "zone": {
+            "type": "string",
+            "nullable": true
+          },
+          "circle": {
+            "type": "string",
+            "nullable": true
+          },
+          "division": {
+            "type": "string",
+            "nullable": true
+          },
+          "subdivision": {
+            "type": "string",
+            "nullable": true
+          },
+          "subStation": {
+            "type": "string",
+            "nullable": true
+          },
+          "feeder": {
+            "type": "string",
+            "nullable": true
+          },
+          "dt": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "MeterDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Meter"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "installationType": {
+                "type": "string",
+                "nullable": true,
+                "example": "Whole Current"
+              },
+              "hierarchy": {
+                "$ref": "#/components/schemas/HierarchyPath"
+              }
+            }
+          }
+        ]
+      },
+      "MeterDetailResponse": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MeterDetail"
+          }
+        }
+      },
+      "ConsumptionRecord": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "example": "24/06/2026 01:00"
+          },
+          "kwh": {
+            "type": "string",
+            "example": "48438.74"
+          },
+          "kvah": {
+            "type": "string",
+            "example": "52313.84"
+          },
+          "voltR": {
+            "type": "string",
+            "nullable": true,
+            "example": "226"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ConsumptionData": {
+        "type": "object",
+        "required": ["meterId", "count", "data"],
+        "properties": {
+          "meterId": {
+            "type": "string",
+            "example": "J100000"
+          },
+          "count": {
+            "type": "integer",
+            "example": 337
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsumptionRecord"
+            }
+          }
+        }
+      },
+      "ConsumptionResponse": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ConsumptionData"
+          }
+        }
+      },
+      "HierarchyResponse": {
+        "type": "object",
+        "required": ["count", "data"],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "example": 63
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HierarchyPath"
+            }
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "INVALID_QUERY_PARAMETER"
+              },
+              "message": {
+                "type": "string",
+                "example": "limit must be an integer between 1 and 100."
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid parameter or date filter",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "examples": {
+              "invalidQuery": {
+                "summary": "Invalid query parameter",
+                "value": {
+                  "error": {
+                    "code": "INVALID_QUERY_PARAMETER",
+                    "message": "limit must be an integer between 1 and 100."
+                  }
+                }
+              },
+              "invalidDate": {
+                "summary": "Invalid date filter",
+                "value": {
+                  "error": {
+                    "code": "INVALID_DATE_FILTER",
+                    "message": "Invalid date filter. Use a valid ISO date or datetime."
+                  }
+                }
+              },
+              "invalidRange": {
+                "summary": "Invalid date range",
+                "value": {
+                  "error": {
+                    "code": "INVALID_DATE_RANGE",
+                    "message": "'from' must be earlier than or equal to 'to'."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "MeterNotFound": {
+        "description": "The requested meter was not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "METER_NOT_FOUND",
+                "message": "Meter not found."
+              }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Unexpected server or portal request error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "An unexpected error occurred."
+              }
+            }
+          }
+        }
+      },
+      "PortalResponseError": {
+        "description": "The portal returned an unexpected response format",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "INVALID_PORTAL_RESPONSE",
+                "message": "Unexpected portal response format."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
